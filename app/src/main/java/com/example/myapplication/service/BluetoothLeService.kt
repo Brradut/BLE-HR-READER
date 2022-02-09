@@ -36,13 +36,6 @@ class BluetoothLeService : Service(){
                 //Log.d("BT","Got result ${result.device.address}")
                 scanResult?.postValue(result)
             }
-            override fun onScanFailed(errorCode: Int) {
-                Log.d("BT", "what the fuck happened $errorCode")
-            }
-
-            override fun onBatchScanResults(results: MutableList<ScanResult>?) {
-                Log.d("BT", "IS MULTE FOR SOME REASON")
-            }
         }
         if (enable == true) {
             val scanSettings =
@@ -149,11 +142,19 @@ class BluetoothLeService : Service(){
 
     fun connect(device: BluetoothDevice?): Boolean {
         this.device?.postValue(device)
-            Log.d("BT","connect: Trying to connect to device  ${device?.address}")
-            if (this.device?.getValue() != null && device?.address.equals(this.device?.getValue()!!.address) && bluetoothGatt != null) {
-                Log.d("BT", "Trying to use an existing mBluetoothGatt for connection.")
-                if (bluetoothGatt?.connect() == true) {
-                    return true
+        if(BleUtil.btAdapter == null || device == null) {
+            Log.d(
+                "BT",
+                "Connect to GattServer failed. Bluetooth Adapter Sate: " + BleUtil.btAdapter.toString() + ", Device State: " + device
+            )
+            return false
+        }else{
+                Log.d("BT", "connect: Trying to connect to device  ${device?.address}")
+                if (this.device?.getValue() != null && device?.address.equals(this.device?.getValue()!!.address) && bluetoothGatt != null) {
+                    Log.d("BT", "Trying to use an existing mBluetoothGatt for connection.")
+                    if (bluetoothGatt?.connect() == true) {
+                        return true
+                    }
                 }
             }
             bluetoothGatt = device?.connectGatt(this, true, gatCallback)

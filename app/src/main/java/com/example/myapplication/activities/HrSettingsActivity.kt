@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
+import com.example.myapplication.model.DeviceItem
 import com.example.myapplication.service.BluetoothLeService
 import com.example.myapplication.viewmodels.HrSettingsViewModel
 import com.example.myapplication.ui.theme.MyApplicationTheme
@@ -47,7 +48,11 @@ class HrSettingsActivity : ComponentActivity() {
 
     fun initObservers(){
         btService?.getScanResult()?.observe(this,{
-            result -> viewModel?.addDevice(BleUtil.btAdapter!!.getRemoteDevice(result?.device?.address))
+            result -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            viewModel?.addDevice(DeviceItem(result?.device!!, result?.isConnectable!!))
+        }else{
+            viewModel?.addDevice(DeviceItem(result?.device!!, false))
+        }
         })
         viewModel?.scannedDevices?.observe(this, {
             deviceList -> Log.d("BT", "$deviceList")
@@ -118,7 +123,12 @@ class HrSettingsActivity : ComponentActivity() {
 
     fun onServiceBinded() {
         btService?.getScanResult()?.observe(this@HrSettingsActivity,
-            Observer<ScanResult?> { scanResult -> viewModel?.addDevice(scanResult.device) })
+            Observer<ScanResult?> { scanResult -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                viewModel?.addDevice(DeviceItem(scanResult.device, scanResult.isConnectable))
+            }else{
+                viewModel?.addDevice(DeviceItem(scanResult.device, false))
+            }
+            })
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -149,15 +159,22 @@ class HrSettingsActivity : ComponentActivity() {
         unregisterReceiver(mReceiver)
     }
     @Composable
-    fun OneItem(device: BluetoothDevice){
+    fun OneItem(device: DeviceItem){
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically){
-            Text(text="${device.name}")
-            Button(onClick = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Text(text = "${device.device.name} ${device.isConnectable}")
+            }else{
+                Text(text = "${device.device.name}")
+            }
+                Button(onClick = {
                 btService?.scanForDevices(false)
-                btService?.connect(device)
-                val intent = Intent(applicationContext, HRMeasurementActivity::class.java)
-                intent.putExtra("device", device.address)
-                startActivity(intent)
+                if(!btService?.connect(device.device)!!)
+                    Toast.makeText(this@HrSettingsActivity, "Couldn't connect. Try disconnecting the wearable from  all other bluetooth devices", Toast.LENGTH_LONG).show()
+                else {
+                    val intent = Intent(applicationContext, HRMeasurementActivity::class.java)
+                    intent.putExtra("device", device.device.address)
+                    startActivity(intent)
+                }
             }){
                 Text(text="Register")
             }
