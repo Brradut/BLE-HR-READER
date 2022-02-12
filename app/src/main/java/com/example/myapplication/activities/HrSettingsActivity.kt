@@ -162,19 +162,21 @@ class HrSettingsActivity : ComponentActivity() {
     fun OneItem(device: DeviceItem){
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically){
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Text(text = "${device.device.name} ${device.isConnectable}")
+                Text(text = "${device.device.name} ${device.device.address} ${device.isConnectable}", modifier = Modifier.fillMaxWidth(0.6f))
             }else{
-                Text(text = "${device.device.name}")
+                Text(text = "${device.device.name} ${device.device.address}")
             }
                 Button(onClick = {
-                btService?.scanForDevices(false)
-                if(!btService?.connect(device.device)!!)
+                    btService?.disconnect()
+                    if(!btService?.connect(device.device)!!)
                     Toast.makeText(this@HrSettingsActivity, "Couldn't connect. Try disconnecting the wearable from  all other bluetooth devices", Toast.LENGTH_LONG).show()
                 else {
+
                     val intent = Intent(applicationContext, HRMeasurementActivity::class.java)
                     intent.putExtra("device", device.device.address)
                     startActivity(intent)
                 }
+                    btService?.scanForDevices(false)
             }){
                 Text(text="Register")
             }

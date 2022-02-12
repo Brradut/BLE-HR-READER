@@ -13,8 +13,12 @@ import android.os.IBinder
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import com.example.myapplication.BLECommands
 import com.example.myapplication.utils.BleUtil
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.thread
+import kotlin.concurrent.withLock
 
 class BluetoothLeService : Service(){
 
@@ -27,6 +31,13 @@ class BluetoothLeService : Service(){
 
     override fun onCreate() {
         super.onCreate()
+        Log.d("BT", "started service")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d("BT", "killed service")
+        disconnect()
     }
 
     fun scanForDevices(enable: Boolean) {
@@ -54,7 +65,9 @@ class BluetoothLeService : Service(){
     }
 
     private val gatCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
+
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(
                     "BT",
@@ -85,17 +98,87 @@ class BluetoothLeService : Service(){
             }
         }
 
+
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             Log.d("BT", "got the services boys")
+
             if(status== BluetoothGatt.GATT_SUCCESS){
                 Log.d("BT", "AVEM SERVICII:D")
+               // for(i in gatt.services)
+                 //   Log.d("BT", "AVEM AICI SERVICIUL ${i.uuid} SI CARACTERISTICILE ${i.characteristics.map { x->x.uuid.toString() + " " + x.properties + " " + x.permissions }.reduceOrNull({x, y->x + "\n" + y})}")
                 val hrService = gatt?.getService(UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb"))
-                val hrCharacteristic = hrService?.getCharacteristic(UUID.fromString("00002a37-0000-1000-8000-00805f9b34fb"))
-                if(hrCharacteristic != null)
+                val mainService = gatt?.getService(UUID.fromString("0000fee0-0000-1000-8000-00805f9b34fb"))
+                val controlCharacteristic = mainService?.getCharacteristic(UUID.fromString("00000003-0000-3512-2118-0009af100700"))
+                val hrMeasurementCharacteristic = hrService?.getCharacteristic(UUID.fromString("00002a37-0000-1000-8000-00805f9b34fb"))
+                val hrControlCharacteristic = hrService?.getCharacteristic(UUID.fromString("00002a39-0000-1000-8000-00805f9b34fb"))
+                if(controlCharacteristic!= null){
+                    thread(start = true){
+                        writeCharacteristicLock.withLock {
+                            BLECommands.enableHrConnection(gatt, controlCharacteristic)
+                            writeCharacteristicCondition.await()
+                        }
+                    }
+                }
+
+                if(hrMeasurementCharacteristic != null && hrControlCharacteristic != null) {
                     Log.d("BT", "AVEM INIMA")
-                setCharacteristicNotification(hrCharacteristic!!, true)
+                    thread(start=true) {
+                        if(device?.value?.name.equals("Mi Smart Band 5", ignoreCase = true)){
+                            writeCharacteristicLock.withLock {
+                                setCharacteristicNotification(hrMeasurementCharacteristic, true)
+                                writeCharacteristicCondition.await()
+                            }
+                         }
+                        BLECommands.setupHrMeasurement(gatt, hrControlCharacteristic, hrMeasurementCharacteristic)
+                    }
+                    }
             }else{
                 Log.d("BT", "N-avem servicii:(")
+            }
+        }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt?,
+            descriptor: BluetoothGattDescriptor?,
+            status: Int
+        ) {
+            writeCharacteristicLock.withLock {
+            if(descriptor != null)
+                Log.d("BT", "WRITE DESCRIPTOR $status IDK WHAT THIS NUMBER MEANS ALSO THIS IS THE VALUE ${descriptor.value.map { x-> x.toString() }.reduce({x, y -> x + " " + y})} AND UUID ${descriptor.uuid}")
+            else
+                Log.d("BT", "cica am scris dar nu se vede idk")
+            writeCharacteristicCondition.signal()
+        }
+        }
+
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?,
+            status: Int
+        ) {
+            if(characteristic != null)
+                Log.d("BT", "READ CHARACTERISTIC $status IDK WHAT THIS NUMBER MEANS ALSO THIS IS THE VALUE ${characteristic.value.map { x-> x.toString() }.reduce({x, y -> x + " " + y})} AND UUID ${characteristic.uuid}")
+            else
+                Log.d("BT", "cica am scris dar nu se vede idk")
+        }
+
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?,
+            status: Int
+        ) {
+            writeCharacteristicLock.withLock {
+                if (characteristic != null)
+                    Log.d(
+                        "BT",
+                        "WRITE CHARACTERISTIC $status IDK WHAT THIS NUMBER MEANS ALSO THIS IS THE VALUE ${
+                            characteristic.value.map { x -> x.toString() }
+                                .reduce({ x, y -> x + " " + y })
+                        } AND UUID ${characteristic.uuid}"
+                    )
+                else
+                    Log.d("BT", "cica am citit dar nu se vede idk")
+                writeCharacteristicCondition.signal()
             }
         }
 
@@ -186,5 +269,10 @@ class BluetoothLeService : Service(){
 
     fun getBluetoothDevice(): LiveData<BluetoothDevice?>? {
         return device
+    }
+
+    companion object{
+        val writeCharacteristicLock = ReentrantLock()
+        val writeCharacteristicCondition = writeCharacteristicLock.newCondition()
     }
 }
