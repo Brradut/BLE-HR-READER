@@ -27,6 +27,7 @@ import android.app.NotificationManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 
@@ -133,7 +134,9 @@ class HRMeasurementActivity() : ComponentActivity(), IBLeCharacteristicCallbacks
     }
 
     override fun onCharacteristicNotify(characteristic: BluetoothGattCharacteristic?) {
-        viewModel?.addMeasurement(BleUtil.intFromBytes(characteristic!!.value), device!!)
+        btService!!.scope.launch {
+            viewModel?.addMeasurement(BleUtil.intFromBytes(characteristic!!.value), device!!)
+        }
     }
 
 

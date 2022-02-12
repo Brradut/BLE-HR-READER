@@ -15,6 +15,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.example.myapplication.BLECommands
 import com.example.myapplication.utils.BleUtil
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.thread
@@ -22,6 +25,10 @@ import kotlin.concurrent.withLock
 
 class BluetoothLeService : Service(){
 
+
+    private val job = SupervisorJob()
+    val scope = CoroutineScope(Dispatchers.Main + job)
+    
     private val mBinder: IBinder =LocalBinder()
     private var bluetoothGatt: BluetoothGatt? = null
     private var device: MutableLiveData<BluetoothDevice>? = null
