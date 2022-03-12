@@ -1,8 +1,8 @@
 import mysql.connector
 import numpy
 
-user = 'user1'
-password = 'hr1password'
+user = 'YOUR_DB_USER'
+password = 'YOUR_DB_PASSWORD'
 conn = mysql.connector.connect(user=user, password=password, host='127.0.0.1', database='heartratedb')
 cursor = conn.cursor()
 
